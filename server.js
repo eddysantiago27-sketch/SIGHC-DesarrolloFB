@@ -1,9 +1,10 @@
+import dotenv from 'dotenv';
+import express from 'express';
+import sql from 'mssql';
+import cors from 'cors';
+import bodyParser from 'body-parser';
 
-require('dotenv').config();
-const express = require('express');
-const sql = require('mssql');
-const cors = require('cors');
-const bodyParser = require('body-parser');
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,40 +19,68 @@ const dbConfig = {
     server: process.env.DB_SERVER,
     database: process.env.DB_NAME,
     options: {
-        encrypt: true, // true para Azure, false para local usualmente
-        trustServerCertificate: true // true para desarrollo local
+        encrypt: true, 
+        trustServerCertificate: true,
+        enableArithAbort: true
     }
 };
 
+// Variable global para estado de conexión
+let isConnected = false;
+
 // Conectar a BD
-sql.connect(dbConfig).then(pool => {
-    if (pool.connected) {
+const connectDB = async () => {
+    try {
+        await sql.connect(dbConfig);
+        isConnected = true;
         console.log('✅ Conectado a SQL Server (SIGHC)');
+    } catch (err) {
+        isConnected = false;
+        console.error('❌ Error conexión SQL:', err);
     }
-}).catch(err => {
-    console.error('❌ Error conexión SQL:', err);
-});
+};
+connectDB();
 
 // --- RUTAS API ---
 
-// Login (Simulado query seguro)
+// 1. Endpoint de Salud (Health Check)
+app.get('/api/health', async (req, res) => {
+    if (isConnected) {
+        res.json({ status: 'online', database: 'SQL Server', time: new Date() });
+    } else {
+        res.status(503).json({ status: 'offline', message: 'No hay conexión a SQL Server' });
+    }
+});
+
+// Login
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body; 
         
-        // En prod: validar hash con HASHBYTES('SHA2_512', ...) en el SP o query
-        const result = await sql.query`SELECT * FROM Usuarios WHERE NombreUsuario = ${username}`;
+        // En un entorno real, aquí validarías el hash usando HASHBYTES en SQL
+        // Por simplicidad, buscamos el usuario activo
+        const result = await sql.query`
+            SELECT u.*, r.NombreRol 
+            FROM Usuarios u
+            INNER JOIN Roles r ON u.IdRol = r.IdRol
+            WHERE u.NombreUsuario = ${username} AND u.Estado = 'A'
+        `;
         
         if (result.recordset.length > 0) {
-            // Unir con rol para nombre
             const user = result.recordset[0];
-            const roleRes = await sql.query`SELECT NombreRol FROM Roles WHERE IdRol = ${user.IdRol}`;
-            user.RolNombre = roleRes.recordset[0]?.NombreRol || 'Usuario';
-            res.json(user);
+            // Mapeo para el frontend
+            res.json({
+                IdUsuario: user.IdUsuario,
+                NombreUsuario: user.NombreUsuario,
+                NombreCompleto: user.NombreCompleto,
+                IdRol: user.IdRol,
+                RolNombre: user.NombreRol
+            });
         } else {
-            res.status(401).json({ message: 'Credenciales inválidas' });
+            res.status(401).json({ message: 'Usuario no encontrado o inactivo' });
         }
     } catch (err) {
+        console.error(err);
         res.status(500).send(err.message);
     }
 });
@@ -64,7 +93,6 @@ app.get('/api/dashboard', async (req, res) => {
         const totalConsultas = await sql.query`SELECT COUNT(*) as count FROM Consultas`;
         const totalMedicos = await sql.query`SELECT COUNT(*) as count FROM Medicos WHERE Estado='A'`;
         
-        // Diagnosticos frecuentes (Vista)
         const diagStats = await sql.query`SELECT TOP 4 CodigoCIE10 as name, TotalCasos as cases, DescripcionCIE10 as descr FROM VW_EstadisticasDiagnosticos ORDER BY TotalCasos DESC`;
 
         res.json({
@@ -111,11 +139,9 @@ app.post('/api/patients', async (req, res) => {
         request.output('IdPacienteOut', sql.Int);
         request.output('NroHistoriaOut', sql.VarChar(15));
 
-        // 1. Ejecutar SP principal (Datos demográficos)
         const result = await request.execute('SP_RegistrarPaciente');
         const newId = result.output.IdPacienteOut;
 
-        // 2. Actualizar datos clínicos (El SP original no los incluye)
         if (newId && (AntecedentesFamiliares || AntecedentesPersonales || Alergias)) {
             const updateReq = new sql.Request();
             updateReq.input('Id', sql.Int, newId);
@@ -145,7 +171,6 @@ app.post('/api/patients', async (req, res) => {
 // Citas
 app.get('/api/appointments', async (req, res) => {
     try {
-        // Vista VW_AgendaMedica
         const result = await sql.query`SELECT * FROM VW_AgendaMedica ORDER BY FechaCita DESC, HoraInicio ASC`;
         res.json(result.recordset);
     } catch (err) {
@@ -180,7 +205,7 @@ app.post('/api/appointments', async (req, res) => {
 
 // Consultas
 app.post('/api/consultations', async (req, res) => {
-    const { idCita, vitals, anamnesis } = req.body;
+    const { idCita, vitals, anamnesis, diagnostico } = req.body;
     try {
         const request = new sql.Request();
         request.input('IdCita', sql.Int, idCita);
@@ -193,7 +218,25 @@ app.post('/api/consultations', async (req, res) => {
         request.input('ExamenFisico', sql.NVarChar(sql.MAX), anamnesis.examen);
         request.output('IdConsultaOut', sql.Int);
 
+        // 1. Registrar Consulta
         const result = await request.execute('SP_RegistrarConsulta');
+        const idConsulta = result.output.IdConsultaOut;
+
+        // 2. Registrar Diagnostico (Manual query, SP doesn't cover it in script)
+        if (idConsulta && diagnostico) {
+             const diagReq = new sql.Request();
+             diagReq.input('IdConsulta', sql.Int, idConsulta);
+             diagReq.input('Codigo', sql.VarChar(10), diagnostico.CodigoCIE10);
+             diagReq.input('Desc', sql.NVarChar(500), diagnostico.DescripcionDiagnostico);
+             diagReq.input('Tipo', sql.VarChar(20), diagnostico.TipoDiagnostico);
+             diagReq.input('Clas', sql.VarChar(20), diagnostico.Clasificacion);
+             
+             await diagReq.query`
+                INSERT INTO Diagnosticos (IdConsulta, CodigoCIE10, DescripcionDiagnostico, TipoDiagnostico, Clasificacion)
+                VALUES (@IdConsulta, @Codigo, @Desc, @Tipo, @Clas)
+             `;
+        }
+
         res.json({ success: true, message: 'Consulta registrada exitosamente' });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -210,7 +253,7 @@ app.get('/api/audit', async (req, res) => {
     }
 });
 
-// Helpers para listas desplegables
+// Helpers
 app.get('/api/medicos', async (req, res) => {
     try {
         const result = await sql.query`SELECT m.*, e.NombreEspecialidad FROM Medicos m JOIN Especialidades e ON m.IdEspecialidad = e.IdEspecialidad WHERE m.Estado='A'`;

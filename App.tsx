@@ -9,18 +9,30 @@ import Consultations from './pages/Consultations';
 import AdminPanel from './pages/AdminPanel';
 import { 
   LayoutDashboard, Users, Calendar, Stethoscope, 
-  ShieldAlert, Database, LogOut, Menu, X
+  ShieldAlert, Database, LogOut, Menu, X, Wifi, WifiOff
 } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
 
   useEffect(() => {
     // Sync service user
     dbService.currentUser = user;
   }, [user]);
+
+  // Check backend health periodically
+  useEffect(() => {
+      const checkStatus = async () => {
+          const status = await dbService.checkHealth();
+          setIsOnline(status);
+      };
+      checkStatus();
+      const interval = setInterval(checkStatus, 10000); // Check every 10 sec
+      return () => clearInterval(interval);
+  }, []);
 
   const handleLogin = (u: User) => {
     setUser(u);
@@ -121,15 +133,19 @@ export default function App() {
               {currentView === 'consultations' && 'Consultas Médicas (M03)'}
               {currentView === 'admin' && 'Panel de Administrador y Auditoría'}
             </h2>
-            <div className="hidden md:flex items-center space-x-2 text-sm text-slate-500">
-              <Database size={16} />
-              <span>SQL Server 2019 (Simulated)</span>
+            
+            {/* Status Indicator */}
+            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium ${isOnline ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+              {isOnline ? <Wifi size={16}/> : <WifiOff size={16}/>}
+              <span className="hidden md:inline">
+                  {isOnline ? 'SQL Server Conectado' : 'Modo Simulación'}
+              </span>
             </div>
           </div>
         </header>
 
         {/* View Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6 pb-24">
           {currentView === 'dashboard' && <Dashboard />}
           {currentView === 'patients' && <Patients />}
           {currentView === 'appointments' && <Appointments />}

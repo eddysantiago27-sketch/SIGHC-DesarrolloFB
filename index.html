@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SIGHC - Hospital Regional de Ayacucho</title>
-    <!-- Mantenemos Tailwind via CDN para configuración rápida de estilos -->
+    <!-- Tailwind via CDN for easy local styling without build step complexity -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -32,14 +32,18 @@
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
     "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
     "vite": "https://aistudiocdn.com/vite@^7.2.7",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.2"
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.2",
+    "express": "https://aistudiocdn.com/express@^5.2.1",
+    "cors": "https://aistudiocdn.com/cors@^2.8.5",
+    "mssql": "https://aistudiocdn.com/mssql@^12.2.0",
+    "dotenv": "https://aistudiocdn.com/dotenv@^17.2.3",
+    "body-parser": "https://aistudiocdn.com/body-parser@^2.2.1"
   }
 }
 </script>
 </head>
   <body class="bg-gray-50 text-slate-800">
     <div id="root"></div>
-    <!-- ESTA LÍNEA ES CRUCIAL PARA QUE VITE CARGUE TU APP -->
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
