@@ -110,6 +110,22 @@ export interface Diagnostico {
   Clasificacion: 'Principal' | 'Secundario' | 'Complicacion';
 }
 
+export interface Medicamento {
+  IdMedicamento: number;
+  CodigoMedicamento: string;
+  NombreGenerico: string;
+  NombreComercial: string;
+  Presentacion: string;
+  Concentracion: string;
+  FormaFarmaceutica: string;
+  UnidadMedida: string;
+  StockMinimo: number;
+  StockActual: number;
+  PrecioUnitario: number;
+  RequiereReceta: boolean;
+  Estado: string;
+}
+
 export interface AuditLog {
   IdAudit: number;
   TablaAfectada: string;
