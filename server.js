@@ -90,7 +90,12 @@ app.get('/api/patients', async (req, res) => {
 });
 
 app.post('/api/patients', async (req, res) => {
-    const { DNI, Nombres, Apellidos, FechaNacimiento, Sexo, Direccion, Telefono, Email, GrupoSanguineo, UsuarioRegistro } = req.body;
+    const { 
+        DNI, Nombres, Apellidos, FechaNacimiento, Sexo, Direccion, 
+        Telefono, Email, GrupoSanguineo, UsuarioRegistro,
+        AntecedentesFamiliares, AntecedentesPersonales, Alergias 
+    } = req.body;
+
     try {
         const request = new sql.Request();
         request.input('DNI', sql.VarChar(8), DNI);
@@ -106,11 +111,31 @@ app.post('/api/patients', async (req, res) => {
         request.output('IdPacienteOut', sql.Int);
         request.output('NroHistoriaOut', sql.VarChar(15));
 
+        // 1. Ejecutar SP principal (Datos demográficos)
         const result = await request.execute('SP_RegistrarPaciente');
+        const newId = result.output.IdPacienteOut;
+
+        // 2. Actualizar datos clínicos (El SP original no los incluye)
+        if (newId && (AntecedentesFamiliares || AntecedentesPersonales || Alergias)) {
+            const updateReq = new sql.Request();
+            updateReq.input('Id', sql.Int, newId);
+            updateReq.input('AntFam', sql.NVarChar(sql.MAX), AntecedentesFamiliares);
+            updateReq.input('AntPers', sql.NVarChar(sql.MAX), AntecedentesPersonales);
+            updateReq.input('Alergias', sql.NVarChar(sql.MAX), Alergias);
+            
+            await updateReq.query`
+                UPDATE Pacientes 
+                SET AntecedentesFamiliares = @AntFam,
+                    AntecedentesPersonales = @AntPers,
+                    Alergias = @Alergias
+                WHERE IdPaciente = @Id
+            `;
+        }
+
         res.json({ 
             success: true, 
             message: `Paciente registrado: ${result.output.NroHistoriaOut}`,
-            id: result.output.IdPacienteOut 
+            id: newId 
         });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
