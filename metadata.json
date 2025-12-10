@@ -1,0 +1,5 @@
+{
+  "name": "SIGHC - Sistema Integral de Gestión de Historias Clínicas",
+  "description": "A comprehensive web interface to validate and demonstrate the SQL Server database architecture for the Ayacucho Regional Hospital management system.",
+  "requestFramePermissions": []
+}
