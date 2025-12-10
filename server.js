@@ -1,22 +1,22 @@
 
+require('dotenv').config();
 const express = require('express');
 const sql = require('mssql');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(bodyParser.json());
 
 // CONFIGURACIÓN DE CONEXIÓN SQL SERVER
-// ¡Actualiza esto con tus credenciales locales!
 const dbConfig = {
-    user: 'sa', // Tu usuario SQL
-    password: 'your_password', // Tu contraseña SQL
-    server: 'localhost', // O el nombre de tu servidor/instancia (ej: 'DESKTOP-XYZ\\SQLEXPRESS')
-    database: 'SIGHC',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER,
+    database: process.env.DB_NAME,
     options: {
         encrypt: true, // true para Azure, false para local usualmente
         trustServerCertificate: true // true para desarrollo local
@@ -37,7 +37,7 @@ sql.connect(dbConfig).then(pool => {
 // Login (Simulado query seguro)
 app.post('/api/login', async (req, res) => {
     try {
-        const { username, password } = req.body; // Fixed: Read from body, not query
+        const { username, password } = req.body; 
         
         // En prod: validar hash con HASHBYTES('SHA2_512', ...) en el SP o query
         const result = await sql.query`SELECT * FROM Usuarios WHERE NombreUsuario = ${username}`;
