@@ -32,10 +32,10 @@ const connectDB = async () => {
     try {
         await sql.connect(dbConfig);
         isConnected = true;
-        console.log('✅ Conectado a SQL Server (SIGHC)');
+        console.log(':) Conectado a SQL Server (SIGHC)');
     } catch (err) {
         isConnected = false;
-        console.error('❌ Error conexión SQL:', err.message);
+        console.error(':() Error conexión SQL:', err.message);
     }
 };
 connectDB();
