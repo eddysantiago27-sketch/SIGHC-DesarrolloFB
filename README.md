@@ -1,10 +1,8 @@
+Run local
 
-## Run Locally
+**Prerequisitos:**  Node.js
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
+1. Instalar dependencia:
    `npm install`
-3. Run the app:
+3. Inicializar la app:
    `npm run dev`
